@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <SDL.h>
-#include <windows.h>
 
 #define SCREEN_WIDTH   1000
 #define SCREEN_HEIGHT  1000
@@ -213,9 +212,6 @@ void draw(struct App *app) {
 
 int main(int argc, char **argv) {
     struct App *app = initSDL();
-	SDL_SetRenderDrawColor(app->renderer, 255, 255, 255, 255);
-	SDL_RenderClear(app->renderer);
-    SDL_RenderPresent(app->renderer);
 
     for (int i = 0;; i++) {
         doInput();
