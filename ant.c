@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include <SDL.h>
+#include "lodepng.h"
 
 #define SCREEN_WIDTH 1000
 #define SCREEN_HEIGHT 1000
@@ -30,8 +31,8 @@ void checkerr(void *p, char *message) {
     }
 }
 
-#define SDLRECT_WIDTH 10  /* Must be a divisor of SCREEN_WIDTH */
-#define SDLRECT_HEIGHT 10 /* Must be a divisor of SCREEN_HEIGHT */
+#define SDLRECT_WIDTH 5 /* Must be a divisor of SCREEN_WIDTH */
+#define SDLRECT_HEIGHT 5 /* Must be a divisor of SCREEN_HEIGHT */
 struct Square {
     int color;
     SDL_Rect rect;
@@ -46,8 +47,8 @@ struct Square *squares_init(int squares_x_len, int squares_y_len) {
     checkerr(squares, "Cannot allocate squares");
 
     int index = 0;
-    for (int x = 0; x < squares_x_len; x++) {
-        for (int y = 0; y < squares_y_len; y++, index++) {
+    for (int y = 0; y < squares_y_len; y++) {
+        for (int x = 0; x < squares_x_len; x++, index++) {
             squares[index].color = 0;
             squares[index].rect.x = x * SDLRECT_WIDTH;
             squares[index].rect.y = y * SDLRECT_HEIGHT;
@@ -82,20 +83,24 @@ struct Board *board_init() {
     board->squares_y_len = SQUARES_Y_LEN;
     board->squares = squares_init(board->squares_x_len, board->squares_y_len);
 
-    board->ants_len = 3;
+    board->ants_len = 4;
     board->ants = malloc(sizeof(struct Ant) * board->ants_len);
     checkerr(board->ants, "Cannot allocate ants");
     board->ants[0].direction = up;
-    board->ants[0].x = board->squares_x_len / 2;
-    board->ants[0].y = board->squares_y_len / 2;
+    board->ants[0].x = 40;
+    board->ants[0].y = 40;
 
     board->ants[1].direction = up;
-    board->ants[1].x = board->squares_x_len / 2 + 1;
-    board->ants[1].y = board->squares_y_len / 2 + 1;
+    board->ants[1].x = board->squares_x_len - 40;
+    board->ants[1].y = board->squares_y_len - 40;
 
     board->ants[2].direction = up;
-    board->ants[2].x = board->squares_x_len / 2 - 1;
-    board->ants[2].y = board->squares_y_len / 2 - 1;
+    board->ants[2].x = 40;
+    board->ants[2].y = board->squares_y_len - 40;
+
+    board->ants[3].direction = up;
+    board->ants[3].x = board->squares_x_len - 40;
+    board->ants[3].y = 40;
 
     return board;
 }
@@ -132,12 +137,39 @@ struct App *initSDL(void) {
     return app;
 }
 
-void doInput() {
+void save_image(struct Board *board) {
+    int square_width = board->squares[0].rect.w;
+    int square_height = board->squares[0].rect.h;
+    unsigned char *image = malloc(board->squares_x_len * board->squares_y_len * square_width * square_height * 3);
+    checkerr(image, "Failed to create image buffer");
+
+    int image_index = 0;
+    for (int y = 0; y < board->squares_y_len; y++) {
+        for (int h = 0; h < square_height; h++) {
+            for (int x = 0; x < board->squares_x_len; x++) {
+                for (int w = 0; w < square_width; w++, image_index++) {
+                    const int *color = colors[board->squares[y*board->squares_x_len+x].color];
+                    image[image_index++] = (unsigned char) color[0];
+                    image[image_index++] = (unsigned char) color[1];
+                    image[image_index] = (unsigned char) color[2];
+                }
+            }
+        }
+    }
+    unsigned int error = lodepng_encode24_file("ant.png", image, board->squares_y_len * square_width, board->squares_x_len * square_height);
+    if (error) {
+        fputs(lodepng_error_text(error), stderr);
+        exit(1);
+    }
+}
+
+void doInput(struct App *app) {
     SDL_Event event;
 
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
         case SDL_QUIT:
+            save_image(app->board);
             exit(0);
             break;
 
@@ -154,30 +186,30 @@ void change_ant_direction(struct Ant *ant, int color) {
 void move_ant(struct Ant *ant, int step, int x_max, int y_max) {
     switch (ant->direction) {
     case up:
-        ant->x -= step;
-        if (ant->x < 0) {
-            ant->x = (ant->x + x_max) % x_max;
+        ant->y -= step;
+        if (ant->y < 0) {
+            ant->y = (ant->y + y_max) % y_max;
         }
         break;
 
     case right:
-        ant->y += step;
-        if (ant->y >= y_max) {
-            ant->y %= y_max;
-        }
-        break;
-
-    case down:
         ant->x += step;
         if (ant->x >= x_max) {
             ant->x %= x_max;
         }
         break;
 
+    case down:
+        ant->y += step;
+        if (ant->y >= y_max) {
+            ant->y %= y_max;
+        }
+        break;
+
     case left:
-        ant->y -= step;
-        if (ant->y < 0) {
-            ant->y = (ant->y + y_max) % y_max;
+        ant->x -= step;
+        if (ant->x < 0) {
+            ant->x = (ant->x + x_max) % x_max;
         }
         break;
     }
@@ -190,8 +222,7 @@ void change_square_color(struct Square *square) {
 void update(struct Board *board) {
     for (int i = 0; i < board->ants_len; i++) {
         struct Ant *ant = &(board->ants[i]);
-        struct Square *square =
-            &(board->squares[(ant->x * board->squares_y_len) + ant->y]);
+        struct Square *square = &(board->squares[(ant->y * board->squares_x_len) + ant->x]);
         change_ant_direction(ant, square->color);
         change_square_color(square);
         move_ant(ant, ANT_STEP, board->squares_x_len, board->squares_y_len);
@@ -213,7 +244,7 @@ int main(int argc, char **argv) {
     struct App *app = initSDL();
 
     for (int i = 0;; i++) {
-        doInput();
+        doInput(app);
         update(app->board);
         draw(app);
         printf("%d\n", i);
