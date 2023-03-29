@@ -6,49 +6,50 @@
 
 #define SCREEN_WIDTH 1000
 #define SCREEN_HEIGHT 1000
+#define N_OUTPUTFILENAME 100
 
 #define N_DIRECTIONS 4
-enum Direction { up, right, down, left };
+enum Direction {UP, RIGHT, DOWN, LEFT};
 
 #define N_COLORS 4
-const int colors[N_COLORS][3] = {
+const uint8_t COLORS[N_COLORS][3] = {
     {255, 255, 255},
     {0, 255, 0},
     {0, 0, 255},
     {255, 0, 0},
 };
-const int color_action[N_COLORS] = {
+const int COLOR_ACTION[N_COLORS] = {
     1,
     -1,
     -1,
     1,
 };
 
-void checkerr(void *p, char *message) {
+void checkerr(void *p, const char *message) {
     if (p == NULL) {
         fputs(message, stderr);
         exit(1);
     }
 }
 
-#define SDLRECT_WIDTH 5 /* Must be a divisor of SCREEN_WIDTH */
-#define SDLRECT_HEIGHT 5 /* Must be a divisor of SCREEN_HEIGHT */
+#define SDLRECT_WIDTH 1 /* Must be a divisor of SCREEN_WIDTH */
+#define SDLRECT_HEIGHT 1 /* Must be a divisor of SCREEN_HEIGHT */
 struct Square {
     int color;
     SDL_Rect rect;
 };
 
-const int SQUARES_X_LEN = (SCREEN_WIDTH / SDLRECT_WIDTH);
-const int SQUARES_Y_LEN = (SCREEN_HEIGHT / SDLRECT_HEIGHT);
-struct Square *squares_init(int squares_x_len, int squares_y_len) {
+const size_t SQUARES_X_LEN = (SCREEN_WIDTH / SDLRECT_WIDTH);
+const size_t SQUARES_Y_LEN = (SCREEN_HEIGHT / SDLRECT_HEIGHT);
+struct Square *squares_init(size_t squares_x_len, size_t squares_y_len) {
 
     struct Square *squares =
         malloc(sizeof(struct Square) * SQUARES_X_LEN * SQUARES_Y_LEN);
     checkerr(squares, "Cannot allocate squares");
 
-    int index = 0;
-    for (int y = 0; y < squares_y_len; y++) {
-        for (int x = 0; x < squares_x_len; x++, index++) {
+    size_t index = 0;
+    for (size_t y = 0; y < squares_y_len; y++) {
+        for (size_t x = 0; x < squares_x_len; x++, index++) {
             squares[index].color = 0;
             squares[index].rect.x = x * SDLRECT_WIDTH;
             squares[index].rect.y = y * SDLRECT_HEIGHT;
@@ -63,16 +64,16 @@ struct Square *squares_init(int squares_x_len, int squares_y_len) {
 #define ANT_STEP 1
 struct Ant {
     enum Direction direction;
-    int x;
-    int y;
+    ssize_t x;
+    ssize_t y;
 };
 
 struct Board {
     struct Ant *ants;
-    int ants_len;
+    size_t ants_len;
     struct Square *squares; /* 2D array in an 1D array */
-    int squares_x_len;
-    int squares_y_len;
+    size_t squares_x_len;
+    size_t squares_y_len;
 };
 
 struct Board *board_init() {
@@ -83,24 +84,29 @@ struct Board *board_init() {
     board->squares_y_len = SQUARES_Y_LEN;
     board->squares = squares_init(board->squares_x_len, board->squares_y_len);
 
-    board->ants_len = 4;
+    board->ants_len = 5;
     board->ants = malloc(sizeof(struct Ant) * board->ants_len);
     checkerr(board->ants, "Cannot allocate ants");
-    board->ants[0].direction = up;
-    board->ants[0].x = 40;
-    board->ants[0].y = 40;
 
-    board->ants[1].direction = up;
+    board->ants[0].direction = UP;
+    board->ants[0].x = board->squares_x_len/2;
+    board->ants[0].y = board->squares_y_len/2;
+
+    board->ants[1].direction = UP;
     board->ants[1].x = board->squares_x_len - 40;
     board->ants[1].y = board->squares_y_len - 40;
 
-    board->ants[2].direction = up;
+    board->ants[2].direction = UP;
     board->ants[2].x = 40;
     board->ants[2].y = board->squares_y_len - 40;
 
-    board->ants[3].direction = up;
+    board->ants[3].direction = UP;
     board->ants[3].x = board->squares_x_len - 40;
     board->ants[3].y = 40;
+
+    board->ants[4].direction = UP;
+    board->ants[4].x = 40;
+    board->ants[4].y = 40;
 
     return board;
 }
@@ -137,39 +143,44 @@ struct App *initSDL(void) {
     return app;
 }
 
-void save_image(struct Board *board) {
-    int square_width = board->squares[0].rect.w;
-    int square_height = board->squares[0].rect.h;
+void save_image(const struct Board *board, const char *filename) {
+    size_t square_width = board->squares[0].rect.w;
+    size_t square_height = board->squares[0].rect.h;
     unsigned char *image = malloc(board->squares_x_len * board->squares_y_len * square_width * square_height * 3);
     checkerr(image, "Failed to create image buffer");
 
-    int image_index = 0;
-    for (int y = 0; y < board->squares_y_len; y++) {
-        for (int h = 0; h < square_height; h++) {
-            for (int x = 0; x < board->squares_x_len; x++) {
-                for (int w = 0; w < square_width; w++, image_index++) {
-                    const int *color = colors[board->squares[y*board->squares_x_len+x].color];
-                    image[image_index++] = (unsigned char) color[0];
-                    image[image_index++] = (unsigned char) color[1];
-                    image[image_index] = (unsigned char) color[2];
+    size_t image_index = 0;
+    for (size_t y = 0; y < board->squares_y_len; y++) {
+        for (size_t h = 0; h < square_height; h++) {
+            for (size_t x = 0; x < board->squares_x_len; x++) {
+                for (size_t w = 0; w < square_width; w++, image_index++) {
+                    const uint8_t *color = COLORS[board->squares[y*board->squares_x_len+x].color];
+                    image[image_index++] = color[0];
+                    image[image_index++] = color[1];
+                    image[image_index] = color[2];
                 }
             }
         }
     }
-    unsigned int error = lodepng_encode24_file("ant.png", image, board->squares_y_len * square_width, board->squares_x_len * square_height);
+    unsigned int error = lodepng_encode24_file(filename, image, board->squares_y_len * square_width, board->squares_x_len * square_height);
     if (error) {
         fputs(lodepng_error_text(error), stderr);
         exit(1);
     }
 }
 
-void doInput(struct App *app) {
+void doInput(const struct App *app, size_t it) {
     SDL_Event event;
 
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
         case SDL_QUIT:
-            save_image(app->board);
+            char filename[N_OUTPUTFILENAME];
+            if (!snprintf(filename, N_OUTPUTFILENAME, "ant_%zu.png", it)) {
+                fputs("Cannot create filename", stderr);
+                exit(1);
+            }
+            save_image(app->board, filename);
             exit(0);
             break;
 
@@ -180,33 +191,33 @@ void doInput(struct App *app) {
 }
 
 void change_ant_direction(struct Ant *ant, int color) {
-    ant->direction = (ant->direction + color_action[color]) % N_DIRECTIONS;
+    ant->direction = (ant->direction + COLOR_ACTION[color]) % N_DIRECTIONS;
 }
 
-void move_ant(struct Ant *ant, int step, int x_max, int y_max) {
+void move_ant(struct Ant *ant, ssize_t step, ssize_t x_max, ssize_t y_max) {
     switch (ant->direction) {
-    case up:
+    case UP:
         ant->y -= step;
         if (ant->y < 0) {
             ant->y = (ant->y + y_max) % y_max;
         }
         break;
 
-    case right:
+    case RIGHT:
         ant->x += step;
         if (ant->x >= x_max) {
             ant->x %= x_max;
         }
         break;
 
-    case down:
+    case DOWN:
         ant->y += step;
         if (ant->y >= y_max) {
             ant->y %= y_max;
         }
         break;
 
-    case left:
+    case LEFT:
         ant->x -= step;
         if (ant->x < 0) {
             ant->x = (ant->x + x_max) % x_max;
@@ -219,8 +230,9 @@ void change_square_color(struct Square *square) {
     square->color = (square->color + 1) % N_COLORS;
 }
 
-void update(struct Board *board) {
-    for (int i = 0; i < board->ants_len; i++) {
+void update(struct App *app) {
+    struct Board *board = app->board;
+    for (size_t i = 0; i < board->ants_len; i++) {
         struct Ant *ant = &(board->ants[i]);
         struct Square *square = &(board->squares[(ant->y * board->squares_x_len) + ant->x]);
         change_ant_direction(ant, square->color);
@@ -229,10 +241,10 @@ void update(struct Board *board) {
     }
 }
 
-void draw(struct App *app) {
-    int i_max = app->board->squares_x_len * app->board->squares_y_len;
-    for (int i = 0; i < i_max; i++) {
-        const int *color = colors[app->board->squares[i].color];
+void draw(const struct App *app) {
+    size_t i_max = app->board->squares_x_len * app->board->squares_y_len;
+    for (size_t i = 0; i < i_max; i++) {
+        const uint8_t *color = COLORS[app->board->squares[i].color];
         SDL_SetRenderDrawColor(app->renderer, color[0], color[1], color[2],
                                255);
         SDL_RenderFillRect(app->renderer, &(app->board->squares[i].rect));
@@ -243,11 +255,14 @@ void draw(struct App *app) {
 int main(int argc, char **argv) {
     struct App *app = initSDL();
 
-    for (int i = 0;; i++) {
-        doInput(app);
-        update(app->board);
-        draw(app);
-        printf("%d\n", i);
+    for (size_t i = 0;; i++) {
+        doInput(app, i);
+        update(app);
+        if (i % 10000 == 0) {
+            draw(app);
+            printf("%zu\n", i);
+            SDL_Delay(10);
+        }
     }
 
     return 0;
